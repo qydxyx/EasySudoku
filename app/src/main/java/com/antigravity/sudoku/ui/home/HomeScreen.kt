@@ -1,6 +1,7 @@
 package com.antigravity.sudoku.ui.home
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -21,10 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -48,9 +46,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.antigravity.sudoku.R
 import com.antigravity.sudoku.domain.model.Difficulty
 import com.antigravity.sudoku.ui.theme.CardBgDark
 import com.antigravity.sudoku.ui.theme.CardBgLight
@@ -64,7 +64,7 @@ import java.util.Locale
 
 /**
  * 优雅主页（Sudoku.com 风格）：
- * 顶部状态栏安全间距、每日挑战卡片、中部品牌棋盘徽章视觉中心、底部继续对局与新游戏双主按钮
+ * 顶部状态栏安全间距、每日挑战卡片、中部拟物化陶瓷键帽徽章视觉中心、底部继续对局与新游戏双主按钮
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -215,58 +215,17 @@ fun HomeScreen(
                 }
             }
 
-            // 2. 中部品牌数独徽章视觉中心 (Sudoku.com 经典居中视觉重心)
+            // 2. 中部拟物化陶瓷键帽图标视觉中心
             Spacer(modifier = Modifier.weight(0.45f))
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Surface(
-                    shape = RoundedCornerShape(24.dp),
-                    color = cardBg,
-                    border = BorderStroke(1.5.dp, primaryColor.copy(alpha = 0.3f)),
-                    shadowElevation = 4.dp,
-                    modifier = Modifier.size(116.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        val sampleRows = listOf(
-                            listOf("5", "", "9"),
-                            listOf("", "7", ""),
-                            listOf("1", "", "4")
-                        )
-                        sampleRows.forEach { row ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                row.forEach { cellText ->
-                                    Box(
-                                        modifier = Modifier
-                                            .size(26.dp)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(
-                                                if (cellText.isNotEmpty()) primaryColor.copy(alpha = 0.15f)
-                                                else (if (isDark) Color(0xFF262C38) else Color(0xFFF1F5F9))
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = cellText,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = primaryColor
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.img_app_logo),
+                    contentDescription = "EasySudoku Icon",
+                    modifier = Modifier.size(124.dp)
+                )
 
                 Spacer(modifier = Modifier.height(18.dp))
 
