@@ -159,15 +159,10 @@ private fun ToolbarItem(
     onClick: () -> Unit
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .clickable(
-                enabled = enabled,
-                indication = ripple(bounded = true, radius = 28.dp),
-                interactionSource = remember { MutableInteractionSource() },
-                onClick = onClick
-            )
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
         Icon(
@@ -220,10 +215,9 @@ fun NumberPad(
                     .background(if (isCompleted) completedBg else baseBg)
                     .clickable(
                         enabled = !isCompleted,
-                        indication = ripple(bounded = true),
-                        interactionSource = remember { MutableInteractionSource() }
-                    ) { onNumberClick(num) },
-                horizontalAlignment = Alignment.CenterVertically,
+                        onClick = { onNumberClick(num) }
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 if (isCompleted) {
