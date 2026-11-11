@@ -9,21 +9,26 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.antigravity.sudoku.ui.components.ActionToolbar
+import com.antigravity.sudoku.ui.components.GameStatusStrip
 import com.antigravity.sudoku.ui.components.HintBanner
 import com.antigravity.sudoku.ui.components.NumberPad
 import com.antigravity.sudoku.ui.components.SudokuBoardCanvas
@@ -35,7 +40,7 @@ import com.antigravity.sudoku.ui.theme.SurfaceBgLight
 
 /**
  * 核心对局界面：
- * 沉浸式顶部状态栏、9x9 高性能 Compose Canvas 棋盘、防窥暂停毛玻璃遮罩、逻辑提示条、五键工具栏与底部智能键盘
+ * 采用均衡垂直分布比例，彻底消除通知栏重叠与中部大面积突兀留白
  */
 @Composable
 fun GameScreen(
@@ -46,18 +51,25 @@ fun GameScreen(
     val isDark = isSystemInDarkTheme()
     val bg = if (isDark) SurfaceBgDark else SurfaceBgLight
 
+    val filledCount = remember(state.cells) {
+        state.cells.count { it.isFilled && !it.isError }
+    }
+
     Scaffold(
         containerColor = bg,
         topBar = {
             TopGameBar(
-                difficulty = state.difficulty,
                 isDailyChallenge = state.isDailyChallenge,
                 dailyDateString = state.dailyDateString,
-                mistakesCount = state.mistakesCount,
-                mistakesLimitEnabled = state.settings.mistakesLimitEnabled,
-                elapsedTimeSeconds = state.elapsedTimeSeconds,
                 isPaused = state.isPaused,
                 onBackClick = onNavigateBack,
+                onRestartClick = {
+                    if (state.isDailyChallenge) {
+                        viewModel.startDailyChallenge(state.dailyDateString)
+                    } else {
+                        viewModel.startNewGame(state.difficulty)
+                    }
+                },
                 onPauseToggleClick = { viewModel.togglePause() }
             )
         }
@@ -66,6 +78,7 @@ fun GameScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .navigationBarsPadding()
         ) {
             if (state.isLoading) {
                 Column(
@@ -87,11 +100,24 @@ fun GameScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // 逻辑提示解析展开横幅
+                    // 顶部适度弹性留白，让主视觉区自然居中偏上
+                    Spacer(modifier = Modifier.weight(0.22f))
+
+                    // 棋盘上方四栏状态信息条 (难度 / 错误 / 进度 / 用时)
+                    GameStatusStrip(
+                        difficulty = state.difficulty,
+                        mistakesCount = state.mistakesCount,
+                        mistakesLimitEnabled = state.settings.mistakesLimitEnabled,
+                        filledCount = filledCount,
+                        elapsedTimeSeconds = state.elapsedTimeSeconds
+                    )
+
+                    // 逻辑提示解析展开横幅（触发提示时显示）
                     state.currentHint?.let { hint ->
+                        Spacer(modifier = Modifier.height(8.dp))
                         HintBanner(
                             title = hint.title,
                             explanation = hint.explanation,
@@ -99,53 +125,57 @@ fun GameScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // 9x9 核心交互棋盘与防作弊暂停遮罩
-                    Box(
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        shadowElevation = 4.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = 4.dp)
                     ) {
-                        SudokuBoardCanvas(
-                            cells = state.cells,
-                            selectedIndex = if (state.isPaused) null else state.selectedIndex,
-                            highlightPeers = state.settings.highlightPeers,
-                            highlightSameNumbers = state.settings.highlightSameNumbers,
-                            waveCells = state.waveCells,
-                            onCellClicked = { viewModel.selectCell(it) }
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            SudokuBoardCanvas(
+                                cells = state.cells,
+                                selectedIndex = if (state.isPaused) null else state.selectedIndex,
+                                highlightPeers = state.settings.highlightPeers,
+                                highlightSameNumbers = state.settings.highlightSameNumbers,
+                                waveCells = state.waveCells,
+                                onCellClicked = { viewModel.selectCell(it) }
+                            )
 
-                        // 暂停防窥毛玻璃遮罩
-                        if (state.isPaused) {
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .background((if (isDark) Color.Black else Color.White).copy(alpha = 0.94f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = "游戏已暂停",
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isDark) Color.White else Color(0xFF111827)
-                                    )
-                                    Text(
-                                        text = "点击右上角播放按钮继续对局",
-                                        fontSize = 13.sp,
-                                        color = if (isDark) Color(0xFF9CA3AF) else Color(0xFF6B7280),
-                                        modifier = Modifier.padding(top = 6.dp)
-                                    )
+                            // 暂停防窥遮罩
+                            if (state.isPaused) {
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .background((if (isDark) Color(0xFF121418) else Color.White).copy(alpha = 0.96f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            text = "游戏已暂停",
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isDark) Color.White else Color(0xFF111827)
+                                        )
+                                        Text(
+                                            text = "点击右上角继续按钮恢复对局",
+                                            fontSize = 13.sp,
+                                            color = if (isDark) Color(0xFF9CA3AF) else Color(0xFF6B7280),
+                                            modifier = Modifier.padding(top = 6.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.weight(1f))
+                    // 棋盘与工具栏之间的适度弹性间距（不再使用单一 weight(1f) 造成巨大黑洞）
+                    Spacer(modifier = Modifier.weight(0.42f))
 
-                    // 底部五键操作工具栏 (撤销、擦除、笔记、自动笔记、提示)
+                    // 五键圆形操作工具栏 (撤销、擦除、笔记、自动笔记、提示)
                     ActionToolbar(
                         canUndo = state.canUndo,
                         notesMode = state.notesMode,
@@ -157,13 +187,16 @@ fun GameScreen(
                         onHintClick = { viewModel.requestHint() }
                     )
 
-                    // 1-9 底部智能数字键盘
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // 1-9 底部高质感数字键盘
                     NumberPad(
                         remainingCounts = state.remainingCounts,
                         onNumberClick = { viewModel.handleNumberInput(it) }
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    // 底部安全留白
+                    Spacer(modifier = Modifier.weight(0.36f))
                 }
             }
 

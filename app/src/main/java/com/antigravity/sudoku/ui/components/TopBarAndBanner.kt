@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,11 +18,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,42 +34,39 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.antigravity.sudoku.domain.model.Difficulty
+import com.antigravity.sudoku.ui.theme.CardBgDark
+import com.antigravity.sudoku.ui.theme.CardBgLight
 import com.antigravity.sudoku.ui.theme.ErrorText
 import com.antigravity.sudoku.ui.theme.SudokuPrimary
 import com.antigravity.sudoku.ui.theme.SudokuPrimaryDark
 
 /**
- * 游戏顶栏：返回按钮、难度标签、错误指示器 (0/3)、计时器与暂停
+ * 顶部导航栏：自动适配系统状态栏高度 (statusBarsPadding)，彻底解决与通知栏重合问题
  */
 @Composable
 fun TopGameBar(
-    difficulty: Difficulty,
     isDailyChallenge: Boolean,
     dailyDateString: String?,
-    mistakesCount: Int,
-    mistakesLimitEnabled: Boolean,
-    elapsedTimeSeconds: Long,
     isPaused: Boolean,
     onBackClick: () -> Unit,
+    onRestartClick: () -> Unit,
     onPauseToggleClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isDark = isSystemInDarkTheme()
     val textPrimary = if (isDark) Color(0xFFF3F4F6) else Color(0xFF111827)
-    val textMuted = if (isDark) Color(0xFF9CA3AF) else Color(0xFF6B7280)
-
-    val minutes = elapsedTimeSeconds / 60
-    val seconds = elapsedTimeSeconds % 60
-    val timeFormatted = String.format("%02d:%02d", minutes, seconds)
+    val primaryColor = if (isDark) SudokuPrimaryDark else SudokuPrimary
+    val iconSurfaceBg = if (isDark) Color(0xFF1E2430) else Color(0xFFEEF2F6)
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .statusBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 返回按钮
+        // 左侧：返回按钮
         IconButton(onClick = onBackClick) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -76,49 +75,141 @@ fun TopGameBar(
             )
         }
 
-        // 中间：难度或每日挑战标签
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = if (isDailyChallenge) "每日挑战" else difficulty.displayName,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = textPrimary
-            )
-            if (isDailyChallenge && dailyDateString != null) {
-                Text(
-                    text = dailyDateString,
-                    fontSize = 11.sp,
-                    color = textMuted
-                )
-            } else if (mistakesLimitEnabled) {
-                Text(
-                    text = "错误: $mistakesCount/3",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (mistakesCount >= 2) ErrorText else textMuted
-                )
-            }
-        }
+        // 中间：标题
+        Text(
+            text = if (isDailyChallenge) "每日挑战 (${dailyDateString ?: ""})" else "数独 Sudoku",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = textPrimary
+        )
 
-        // 右侧：时间与暂停按钮
+        // 右侧：新开本局与暂停按钮
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = timeFormatted,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = textPrimary
-            )
-            IconButton(onClick = onPauseToggleClick) {
-                Icon(
-                    imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                    contentDescription = if (isPaused) "继续" else "暂停",
-                    tint = if (isDark) SudokuPrimaryDark else SudokuPrimary
-                )
+            Surface(
+                shape = CircleShape,
+                color = iconSurfaceBg,
+                modifier = Modifier.size(38.dp)
+            ) {
+                IconButton(onClick = onRestartClick) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "重新开始",
+                        tint = textPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Surface(
+                shape = CircleShape,
+                color = iconSurfaceBg,
+                modifier = Modifier.size(38.dp)
+            ) {
+                IconButton(onClick = onPauseToggleClick) {
+                    Icon(
+                        imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                        contentDescription = if (isPaused) "继续" else "暂停",
+                        tint = primaryColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
+    }
+}
+
+/**
+ * Sudoku.com 标志性棋盘上方四栏状态信息条（难度 / 错误次数 / 填数进度 / 计时）
+ */
+@Composable
+fun GameStatusStrip(
+    difficulty: Difficulty,
+    mistakesCount: Int,
+    mistakesLimitEnabled: Boolean,
+    filledCount: Int,
+    elapsedTimeSeconds: Long,
+    modifier: Modifier = Modifier
+) {
+    val isDark = isSystemInDarkTheme()
+    val cardBg = if (isDark) CardBgDark else CardBgLight
+    val textPrimary = if (isDark) Color(0xFFF3F4F6) else Color(0xFF111827)
+    val textMuted = if (isDark) Color(0xFF9CA3AF) else Color(0xFF6B7280)
+
+    val minutes = elapsedTimeSeconds / 60
+    val seconds = elapsedTimeSeconds % 60
+    val timeFormatted = String.format("%02d:%02d", minutes, seconds)
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = cardBg,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            StatusColumnItem(
+                label = "难度",
+                value = difficulty.displayName,
+                labelColor = textMuted,
+                valueColor = textPrimary
+            )
+
+            if (mistakesLimitEnabled) {
+                StatusColumnItem(
+                    label = "错误",
+                    value = "$mistakesCount / 3",
+                    labelColor = textMuted,
+                    valueColor = if (mistakesCount >= 2) ErrorText else textPrimary
+                )
+            }
+
+            StatusColumnItem(
+                label = "进度",
+                value = "$filledCount / 81",
+                labelColor = textMuted,
+                valueColor = textPrimary
+            )
+
+            StatusColumnItem(
+                label = "用时",
+                value = timeFormatted,
+                labelColor = textMuted,
+                valueColor = textPrimary
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatusColumnItem(
+    label: String,
+    value: String,
+    labelColor: Color,
+    valueColor: Color
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            color = labelColor
+        )
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = valueColor,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 
@@ -140,7 +231,7 @@ fun HintBanner(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = bannerBg)
     ) {

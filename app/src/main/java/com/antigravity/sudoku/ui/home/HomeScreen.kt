@@ -1,5 +1,6 @@
 package com.antigravity.sudoku.ui.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -11,8 +12,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -32,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -58,7 +63,8 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 优雅主页：包含极简品牌标头、每日挑战快捷入口、继续上次对局、新游戏选难度弹窗、历史统计与偏好设置
+ * 优雅主页（Sudoku.com 风格）：
+ * 顶部状态栏安全间距、每日挑战卡片、中部品牌棋盘徽章视觉中心、底部继续对局与新游戏双主按钮
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,31 +98,46 @@ fun HomeScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .statusBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Sudoku",
-                    fontSize = 26.sp,
+                    text = "EasySudoku",
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = primaryColor,
-                    letterSpacing = 1.sp
+                    letterSpacing = 0.5.sp
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(onClick = onStatsClick) {
-                        Icon(
-                            imageVector = Icons.Default.BarChart,
-                            contentDescription = "统计",
-                            tint = textPrimary
-                        )
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isDark) Color(0xFF1E2430) else Color(0xFFEEF2F6),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        IconButton(onClick = onStatsClick) {
+                            Icon(
+                                imageVector = Icons.Default.BarChart,
+                                contentDescription = "统计",
+                                tint = textPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "设置",
-                            tint = textPrimary
-                        )
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isDark) Color(0xFF1E2430) else Color(0xFFEEF2F6),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "设置",
+                                tint = textPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -126,151 +147,211 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-                // 1. 每日挑战快捷卡片
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            // 1. 顶部每日挑战大卡片
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable { onDailyChallengeClick() }
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable { onDailyChallengeClick() }
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .background(Color(0xFFFEF3C7), shape = CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.EmojiEvents,
-                                    contentDescription = "每日挑战",
-                                    tint = Color(0xFFD97706),
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column {
-                                Text(
-                                    text = "每日挑战",
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = textPrimary
-                                )
-                                Text(
-                                    text = todayFormatted,
-                                    fontSize = 13.sp,
-                                    color = textMuted
-                                )
-                            }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .background(Color(0xFFFEF3C7), shape = CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.EmojiEvents,
+                                contentDescription = "每日挑战",
+                                tint = Color(0xFFD97706),
+                                modifier = Modifier.size(28.dp)
+                            )
                         }
-                        Icon(
-                            imageVector = Icons.Default.CalendarToday,
-                            contentDescription = "日历",
-                            tint = primaryColor,
-                            modifier = Modifier.size(22.dp)
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column {
+                            Text(
+                                text = "每日挑战",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = textPrimary
+                            )
+                            Text(
+                                text = todayFormatted,
+                                fontSize = 13.sp,
+                                color = textMuted,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = primaryColor.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "去挑战",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primaryColor,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(24.dp))
+            // 2. 中部品牌数独徽章视觉中心 (Sudoku.com 经典居中视觉重心)
+            Spacer(modifier = Modifier.weight(0.45f))
 
-                // 2. 如果存在中断对局，展示醒目的“继续游戏”大卡片
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = cardBg,
+                    border = BorderStroke(1.5.dp, primaryColor.copy(alpha = 0.3f)),
+                    shadowElevation = 4.dp,
+                    modifier = Modifier.size(116.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        val sampleRows = listOf(
+                            listOf("5", "", "9"),
+                            listOf("", "7", ""),
+                            listOf("1", "", "4")
+                        )
+                        sampleRows.forEach { row ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                row.forEach { cellText ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(26.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(
+                                                if (cellText.isNotEmpty()) primaryColor.copy(alpha = 0.15f)
+                                                else (if (isDark) Color(0xFF262C38) else Color(0xFFF1F5F9))
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = cellText,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = primaryColor
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Text(
+                    text = "经典数独 · 逻辑之美",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary
+                )
+                Text(
+                    text = "纯粹无广告 · 严格唯一解 · 随时随地锻炼脑力",
+                    fontSize = 13.sp,
+                    color = textMuted,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(0.55f))
+
+            // 3. 底部主操作区：继续游戏 & 新游戏
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 if (hasSavedGame && savedGameDifficulty != null) {
                     val minutes = savedGameTime / 60
                     val seconds = savedGameTime % 60
                     val timeFormatted = String.format("%02d:%02d", minutes, seconds)
 
-                    Card(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = cardBg),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                    Button(
+                        onClick = onResumeGameClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable { onResumeGameClick() }
+                            .height(60.dp)
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "继续对局",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = textPrimary
-                                )
-                                Text(
-                                    text = savedGameDifficulty.displayName,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = primaryColor
-                                )
-                            }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "已进行用时: $timeFormatted",
-                                fontSize = 13.sp,
-                                color = textMuted,
-                                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
+                                text = "继续游戏",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
                             )
-                            Button(
-                                onClick = onResumeGameClick,
-                                colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("继续", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            }
+                            Text(
+                                text = "${savedGameDifficulty.displayName} · $timeFormatted",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
                         }
                     }
-                }
-            }
 
-            // 底部操作区：开启新游戏
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                Button(
-                    onClick = { showDifficultySheet = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                ) {
-                    Text(
-                        text = "新游戏",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    OutlinedButton(
+                        onClick = { showDifficultySheet = true },
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.5.dp, primaryColor),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                    ) {
+                        Text(
+                            text = "新游戏",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primaryColor
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = { showDifficultySheet = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(58.dp)
+                    ) {
+                        Text(
+                            text = "新游戏",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }
