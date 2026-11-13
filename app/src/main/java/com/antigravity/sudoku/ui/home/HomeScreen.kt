@@ -154,14 +154,21 @@ fun HomeScreen(
                 .navigationBarsPadding()
         ) {
             val minScreenHeight = maxHeight
-            Column(
+            val minContentHeight = if (hasSavedGame) 620.dp else 560.dp
+            val targetHeight = if (minScreenHeight > minContentHeight) minScreenHeight else minContentHeight
+
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .heightIn(min = minScreenHeight)
-                    .padding(horizontal = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(targetHeight)
+                        .padding(horizontal = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // 1. 顶部每日挑战大卡片
