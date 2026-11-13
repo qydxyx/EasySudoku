@@ -45,6 +45,7 @@ data class GameUiState(
     val isNewRecord: Boolean = false,
     val currentHint: HintStep? = null,
     val waveCells: Set<Int> = emptySet(),
+    val waveTriggerId: Long = 0L,
     val remainingCounts: Map<Int, Int> = (1..9).associateWith { 9 },
     val canUndo: Boolean = false,
     val settings: UserSettings = UserSettings()
@@ -62,25 +63,69 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private val undoStack = mutableListOf<MoveRecord>()
     private var timerJob: Job? = null
+    private var generateJob: Job? = null
+    private var isGameScreenVisible = false
+    private var resultRecordedForCurrentGame = false
 
     init {
-        loadSettings()
+        refreshSettings()
     }
 
-    private fun loadSettings() {
+    fun refreshSettings() {
         val s = storage.getSettings()
         feedbackManager.soundEnabled = s.soundEnabled
         feedbackManager.hapticEnabled = s.hapticEnabled
-        _uiState.update { it.copy(settings = s) }
+        _uiState.update { state ->
+            val isOver = if (!state.isCompleted && state.cells.isNotEmpty() && s.mistakesLimitEnabled && state.mistakesCount >= 3) {
+                true
+            } else if (!s.mistakesLimitEnabled) {
+                false
+            } else {
+                state.isGameOver
+            }
+            state.copy(settings = s, isGameOver = isOver)
+        }
+    }
+
+    fun updateSettings(newSettings: UserSettings) {
+        storage.saveSettings(newSettings)
+        feedbackManager.soundEnabled = newSettings.soundEnabled
+        feedbackManager.hapticEnabled = newSettings.hapticEnabled
+        _uiState.update { state ->
+            val isOver = if (!state.isCompleted && state.cells.isNotEmpty() && newSettings.mistakesLimitEnabled && state.mistakesCount >= 3) {
+                true
+            } else if (!newSettings.mistakesLimitEnabled) {
+                false
+            } else {
+                state.isGameOver
+            }
+            state.copy(settings = newSettings, isGameOver = isOver)
+        }
     }
 
     fun startNewGame(difficulty: Difficulty) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, isPaused = false, isCompleted = false, isGameOver = false) }
+        recordAbandonedGameIfNeeded()
+        generateJob?.cancel()
+        stopTimer()
+        refreshSettings()
+
+        generateJob = viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    isPaused = false,
+                    isCompleted = false,
+                    isGameOver = false,
+                    isNewRecord = false,
+                    currentHint = null,
+                    waveCells = emptySet()
+                )
+            }
             val puzzle = withContext(Dispatchers.Default) {
                 generator.generate(difficulty)
             }
             undoStack.clear()
+            resultRecordedForCurrentGame = false
 
             _uiState.update {
                 it.copy(
@@ -96,21 +141,40 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     hintsRemaining = 3,
                     isCompleted = false,
                     isGameOver = false,
+                    isNewRecord = false,
                     currentHint = null,
                     waveCells = emptySet(),
+                    waveTriggerId = 0L,
                     remainingCounts = calculateRemaining(puzzle.initialBoard),
                     canUndo = false
                 )
             }
-            startTimer()
+            if (isGameScreenVisible) {
+                startTimer()
+            }
             saveCurrentGame()
         }
     }
 
     fun startDailyChallenge(dateString: String? = null) {
-        val targetDate = dateString ?: SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, isPaused = false, isCompleted = false, isGameOver = false) }
+        recordAbandonedGameIfNeeded()
+        generateJob?.cancel()
+        stopTimer()
+        refreshSettings()
+
+        val targetDate = dateString ?: SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        generateJob = viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    isPaused = false,
+                    isCompleted = false,
+                    isGameOver = false,
+                    isNewRecord = false,
+                    currentHint = null,
+                    waveCells = emptySet()
+                )
+            }
 
             val puzzle = withContext(Dispatchers.Default) {
                 // 基于日期哈希作为确定性随机种子，确保所有人、任何时候玩同一天题目完全一致
@@ -118,6 +182,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 generator.generate(Difficulty.MEDIUM, Random(seed))
             }
             undoStack.clear()
+            resultRecordedForCurrentGame = false
 
             _uiState.update {
                 it.copy(
@@ -133,22 +198,78 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     hintsRemaining = 3,
                     isCompleted = false,
                     isGameOver = false,
+                    isNewRecord = false,
                     currentHint = null,
                     waveCells = emptySet(),
+                    waveTriggerId = 0L,
                     remainingCounts = calculateRemaining(puzzle.initialBoard),
                     canUndo = false
                 )
             }
-            startTimer()
+            if (isGameScreenVisible) {
+                startTimer()
+            }
             saveCurrentGame()
+        }
+    }
+
+    fun restartCurrentBoardOrNewGame() {
+        val state = _uiState.value
+        if (state.isDailyChallenge) {
+            startDailyChallenge(state.dailyDateString)
+        } else {
+            startNewGame(state.difficulty)
+        }
+    }
+
+    fun abandonOnGameOverExit() {
+        val state = _uiState.value
+        if (!state.isDailyChallenge && !state.isCompleted && !resultRecordedForCurrentGame) {
+            storage.recordGameFinished(state.difficulty, won = false, timeSeconds = state.elapsedTimeSeconds)
+            resultRecordedForCurrentGame = true
+        }
+        stopTimer()
+        storage.clearActiveGame()
+    }
+
+    private fun recordAbandonedGameIfNeeded() {
+        val state = _uiState.value
+        if (state.cells.isNotEmpty()) {
+            if (!state.isDailyChallenge && !state.isCompleted && !resultRecordedForCurrentGame) {
+                val hasProgress = state.elapsedTimeSeconds > 0 ||
+                    state.mistakesCount > 0 ||
+                    state.cells.any { !it.isGiven && (it.value != 0 || it.notes != 0) }
+                if (hasProgress) {
+                    storage.recordGameFinished(state.difficulty, won = false, timeSeconds = state.elapsedTimeSeconds)
+                    resultRecordedForCurrentGame = true
+                }
+            }
+            return
+        }
+
+        // 若内存尚未恢复（如从主页直接点击“新游戏”覆盖旧存档），也检查磁盘上的未完成常规对局
+        val saved = storage.loadActiveGame() ?: return
+        if (!saved.isDailyChallenge) {
+            val hasProgress = saved.elapsedTimeSeconds > 0 ||
+                saved.mistakesCount > 0 ||
+                saved.cells.any { !it.isGiven && (it.value != 0 || it.notes != 0) }
+            if (hasProgress) {
+                storage.recordGameFinished(saved.difficulty, won = false, timeSeconds = saved.elapsedTimeSeconds)
+            }
         }
     }
 
     fun resumeActiveGame(): Boolean {
         val saved = storage.loadActiveGame() ?: return false
+        refreshSettings()
+        val currentSettings = _uiState.value.settings
+        val isOver = currentSettings.mistakesLimitEnabled && saved.mistakesCount >= 3
         undoStack.clear()
+        resultRecordedForCurrentGame = false
+
         _uiState.update {
             it.copy(
+                isLoading = false,
                 cells = saved.cells,
                 difficulty = saved.difficulty,
                 isDailyChallenge = saved.isDailyChallenge,
@@ -160,36 +281,80 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 hintsRemaining = (3 - saved.hintsUsed).coerceAtLeast(0),
                 isPaused = false,
                 isCompleted = false,
-                isGameOver = false,
+                isGameOver = isOver,
+                isNewRecord = false,
                 currentHint = null,
                 waveCells = emptySet(),
+                waveTriggerId = 0L,
                 remainingCounts = calculateRemaining(saved.cells),
                 canUndo = false
             )
         }
-        startTimer()
+        if (!isOver && isGameScreenVisible) {
+            startTimer()
+        }
         return true
     }
 
+    fun onGameScreenEntered() {
+        isGameScreenVisible = true
+        refreshSettings()
+        val state = _uiState.value
+        if (!state.isLoading && state.cells.isNotEmpty() && !state.isPaused && !state.isCompleted && !state.isGameOver) {
+            startTimer()
+        }
+    }
+
+    fun onGameScreenExited() {
+        isGameScreenVisible = false
+        stopTimer()
+        saveCurrentGame()
+    }
+
+    fun onAppPaused() {
+        stopTimer()
+        val state = _uiState.value
+        if (isGameScreenVisible && !state.isLoading && state.cells.isNotEmpty() && !state.isCompleted && !state.isGameOver) {
+            _uiState.update { it.copy(isPaused = true) }
+        }
+        saveCurrentGame()
+    }
+
+    fun onAppResumed() {
+        refreshSettings()
+        val state = _uiState.value
+        if (isGameScreenVisible && !state.isLoading && state.cells.isNotEmpty() && !state.isPaused && !state.isCompleted && !state.isGameOver) {
+            startTimer()
+        }
+    }
+
     fun selectCell(index: Int) {
-        if (_uiState.value.isPaused || _uiState.value.isCompleted) return
+        val state = _uiState.value
+        if (state.isPaused || state.isCompleted || state.isGameOver) return
+        if (index !in 0 until 81) return
         feedbackManager.vibrateClick()
         _uiState.update { it.copy(selectedIndex = index) }
     }
 
     fun toggleNotesMode() {
+        val state = _uiState.value
+        if (state.isPaused || state.isCompleted || state.isGameOver) return
         feedbackManager.vibrateClick()
         _uiState.update { it.copy(notesMode = !it.notesMode) }
     }
 
     fun togglePause() {
-        val currentlyPaused = _uiState.value.isPaused
-        if (currentlyPaused) {
+        val state = _uiState.value
+        if (state.isLoading || state.isCompleted || state.isGameOver) return
+        if (state.isPaused) {
             _uiState.update { it.copy(isPaused = false) }
-            startTimer()
+            if (isGameScreenVisible) {
+                startTimer()
+            }
         } else {
             _uiState.update { it.copy(isPaused = true) }
             stopTimer()
+            saveCurrentGame()
         }
     }
 
@@ -197,11 +362,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val state = _uiState.value
         val index = state.selectedIndex ?: return
         if (state.isPaused || state.isCompleted || state.isGameOver) return
-        val currentCell = state.cells[index]
+        val currentCell = state.cells.getOrNull(index) ?: return
         if (currentCell.isGiven) return
+        // 已填入正确数字的格子禁止误覆盖或写入隐形笔记
+        if (currentCell.isFilled && currentCell.isCorrect) return
 
         if (state.notesMode) {
-            // 笔记模式：切换候选数位掩码
+            // 当前格若已有错误数字，先擦除再记笔记，避免产生不可见的笔记掩码
+            if (currentCell.isFilled) return
+
             val newCell = currentCell.toggleNote(number)
             val updated = state.cells.toMutableList()
             updated[index] = newCell
@@ -213,7 +382,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     previousValue = currentCell.value,
                     newValue = currentCell.value,
                     previousNotes = currentCell.notes,
-                    newNotes = newCell.notes
+                    newNotes = newCell.notes,
+                    previousWasError = currentCell.isError
                 )
             )
 
@@ -221,7 +391,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             feedbackManager.vibrateClick()
 
             _uiState.update {
-                it.copy(cells = updated, canUndo = true)
+                it.copy(cells = updated, canUndo = true, currentHint = null)
             }
             saveCurrentGame()
         } else {
@@ -274,16 +444,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     previousNotes = currentCell.notes,
                     newNotes = 0,
                     affectedNotes = affectedList,
-                    wasError = wasError
+                    wasError = wasError,
+                    previousWasError = currentCell.isError
                 )
             )
 
             // 检查是否有行、列、宫在此步刚被填满且全部正确（触发波浪动效）
             val completedWave = checkWaveTrigger(updated, currentCell.row, currentCell.col)
+            val nextWaveId = if (completedWave.isNotEmpty()) state.waveTriggerId + 1L else state.waveTriggerId
 
             val remaining = calculateRemaining(updated)
             val isWin = checkWinCondition(updated)
-            val isOver = state.settings.mistakesLimitEnabled && newMistakes >= 3
+            val isOver = !isWin && state.settings.mistakesLimitEnabled && newMistakes >= 3
 
             _uiState.update {
                 it.copy(
@@ -291,17 +463,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     mistakesCount = newMistakes,
                     isGameOver = isOver,
                     waveCells = completedWave,
+                    waveTriggerId = nextWaveId,
                     remainingCounts = remaining,
-                    canUndo = true
+                    canUndo = true,
+                    currentHint = null
                 )
             }
 
             if (isWin) {
                 handleVictory()
-            } else if (isOver) {
-                stopTimer()
+            } else {
+                if (isOver) {
+                    stopTimer()
+                }
+                saveCurrentGame()
             }
-            saveCurrentGame()
         }
     }
 
@@ -309,7 +485,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val state = _uiState.value
         val index = state.selectedIndex ?: return
         if (state.isPaused || state.isCompleted || state.isGameOver) return
-        val currentCell = state.cells[index]
+        val currentCell = state.cells.getOrNull(index) ?: return
         if (currentCell.isGiven || (currentCell.value == 0 && currentCell.notes == 0)) return
 
         val newCell = currentCell.copy(value = 0, notes = 0, isError = false)
@@ -323,7 +499,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 previousValue = currentCell.value,
                 newValue = 0,
                 previousNotes = currentCell.notes,
-                newNotes = 0
+                newNotes = 0,
+                previousWasError = currentCell.isError
             )
         )
 
@@ -334,36 +511,45 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 cells = updated,
                 remainingCounts = calculateRemaining(updated),
-                canUndo = true
+                canUndo = true,
+                currentHint = null
             )
         }
         saveCurrentGame()
     }
 
     fun undo() {
-        if (undoStack.isEmpty()) return
-        val lastMove = undoStack.removeAt(undoStack.lastIndex)
         val state = _uiState.value
+        if (state.isPaused || state.isCompleted || state.isGameOver || undoStack.isEmpty()) return
+        val lastMove = undoStack.removeAt(undoStack.lastIndex)
         val updated = state.cells.toMutableList()
 
-        val targetIdx = lastMove.row * 9 + lastMove.col
-        val curr = updated[targetIdx]
-        updated[targetIdx] = curr.copy(
-            value = lastMove.previousValue,
-            notes = lastMove.previousNotes,
-            isError = false
-        )
+        if (lastMove.row == -1 && lastMove.col == -1) {
+            // 批量笔记操作（如自动笔记）的还原
+            for (aff in lastMove.affectedNotes) {
+                val affIdx = aff.row * 9 + aff.col
+                val c = updated[affIdx]
+                if (!c.isFilled) {
+                    updated[affIdx] = c.copy(notes = aff.oldNotes)
+                }
+            }
+        } else {
+            val targetIdx = lastMove.row * 9 + lastMove.col
+            val curr = updated[targetIdx]
+            updated[targetIdx] = curr.copy(
+                value = lastMove.previousValue,
+                notes = lastMove.previousNotes,
+                isError = lastMove.previousWasError
+            )
 
-        // 还原受波及自动清除的笔记
-        for (aff in lastMove.affectedNotes) {
-            val affIdx = aff.row * 9 + aff.col
-            val c = updated[affIdx]
-            updated[affIdx] = c.copy(notes = aff.oldNotes)
-        }
-
-        var mistakes = state.mistakesCount
-        if (lastMove.wasError && mistakes > 0) {
-            mistakes--
+            // 还原受波及自动清除的笔记
+            for (aff in lastMove.affectedNotes) {
+                val affIdx = aff.row * 9 + aff.col
+                val c = updated[affIdx]
+                if (!c.isFilled) {
+                    updated[affIdx] = c.copy(notes = aff.oldNotes)
+                }
+            }
         }
 
         feedbackManager.vibrateClick()
@@ -371,21 +557,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update {
             it.copy(
                 cells = updated,
-                mistakesCount = mistakes,
-                isGameOver = false,
                 remainingCounts = calculateRemaining(updated),
-                canUndo = undoStack.isNotEmpty()
+                canUndo = undoStack.isNotEmpty(),
+                currentHint = null
             )
         }
         saveCurrentGame()
     }
 
     /**
-     * 一键自动填满（或在已填满时清除）全盘所有空格的合法候选数
+     * 一键自动填满（仅当全盘空格都已匹配自动候选数时再次点击才会清除），支持单步撤销恢复原笔记
      */
     fun toggleAutoNotes() {
         val state = _uiState.value
-        if (state.isPaused || state.isCompleted) return
+        if (state.isPaused || state.isCompleted || state.isGameOver) return
 
         val grid = Array(9) { r ->
             IntArray(9) { c ->
@@ -394,32 +579,61 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // 检查当前是否已经填有了笔记
-        val hasAnyNotes = state.cells.any { !it.isFilled && it.notes != 0 }
+        val computedMasks = IntArray(81)
+        var allAlreadyMatchAuto = true
+        var hasEmptyCell = false
 
-        val updated = state.cells.map { cell ->
-            if (cell.isFilled) {
-                cell
-            } else {
-                if (hasAnyNotes) {
-                    cell.copy(notes = 0)
-                } else {
-                    val candidates = hintAnalyzer.getCandidates(grid, cell.row, cell.col)
-                    var mask = 0
-                    candidates.forEach { mask = mask or (1 shl it) }
-                    cell.copy(notes = mask)
+        for (i in 0 until 81) {
+            val cell = state.cells[i]
+            if (!cell.isFilled) {
+                hasEmptyCell = true
+                val candidates = hintAnalyzer.getCandidates(grid, cell.row, cell.col)
+                var mask = 0
+                candidates.forEach { mask = mask or (1 shl it) }
+                computedMasks[i] = mask
+                if (cell.notes != mask) {
+                    allAlreadyMatchAuto = false
                 }
             }
         }
 
+        if (!hasEmptyCell) return
+
+        val affectedList = mutableListOf<AffectedNote>()
+        val updated = state.cells.mapIndexed { index, cell ->
+            if (cell.isFilled) {
+                cell
+            } else {
+                val newMask = if (allAlreadyMatchAuto) 0 else computedMasks[index]
+                if (cell.notes != newMask) {
+                    affectedList.add(AffectedNote(cell.row, cell.col, cell.notes, newMask))
+                }
+                cell.copy(notes = newMask)
+            }
+        }
+
+        if (affectedList.isEmpty()) return
+
+        undoStack.add(
+            MoveRecord(
+                row = -1,
+                col = -1,
+                previousValue = 0,
+                newValue = 0,
+                previousNotes = 0,
+                newNotes = 0,
+                affectedNotes = affectedList
+            )
+        )
+
         feedbackManager.vibrateClick()
-        _uiState.update { it.copy(cells = updated) }
+        _uiState.update { it.copy(cells = updated, canUndo = true, currentHint = null) }
         saveCurrentGame()
     }
 
     fun requestHint() {
         val state = _uiState.value
-        if (state.hintsRemaining <= 0 || state.isPaused || state.isCompleted) return
+        if (state.hintsRemaining <= 0 || state.isPaused || state.isCompleted || state.isGameOver) return
 
         val hint = hintAnalyzer.analyzeNextStep(state.cells, state.selectedIndex) ?: return
         val targetIdx = hint.targetRow * 9 + hint.targetCol
@@ -428,31 +642,48 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val currentCell = state.cells[targetIdx]
         val newCell = currentCell.copy(
             value = hint.suggestedValue,
-            solution = hint.suggestedValue,
             isError = false,
             notes = 0
         )
         val updated = state.cells.toMutableList()
         updated[targetIdx] = newCell
 
-        // 自动清除关联笔记
+        // 自动清除关联笔记并记录到撤回栈
+        val affectedList = mutableListOf<AffectedNote>()
         if (state.settings.autoRemoveNotes) {
             for (i in 0 until 81) {
                 val c = updated[i]
                 if (!c.isFilled && c.hasNote(hint.suggestedValue)) {
                     val isPeer = c.row == hint.targetRow || c.col == hint.targetCol || c.blockIndex == newCell.blockIndex
                     if (isPeer) {
-                        updated[i] = c.removeNote(hint.suggestedValue)
+                        val cleared = c.removeNote(hint.suggestedValue)
+                        updated[i] = cleared
+                        affectedList.add(AffectedNote(c.row, c.col, c.notes, cleared.notes))
                     }
                 }
             }
         }
+
+        undoStack.add(
+            MoveRecord(
+                row = currentCell.row,
+                col = currentCell.col,
+                previousValue = currentCell.value,
+                newValue = hint.suggestedValue,
+                previousNotes = currentCell.notes,
+                newNotes = 0,
+                affectedNotes = affectedList,
+                wasError = false,
+                previousWasError = currentCell.isError
+            )
+        )
 
         feedbackManager.playVictoryChord()
         feedbackManager.vibrateSuccess()
 
         val newHints = state.hintsRemaining - 1
         val completedWave = checkWaveTrigger(updated, hint.targetRow, hint.targetCol)
+        val nextWaveId = if (completedWave.isNotEmpty()) state.waveTriggerId + 1L else state.waveTriggerId
         val remaining = calculateRemaining(updated)
         val isWin = checkWinCondition(updated)
 
@@ -463,14 +694,17 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 hintsRemaining = newHints,
                 currentHint = hint,
                 waveCells = completedWave,
-                remainingCounts = remaining
+                waveTriggerId = nextWaveId,
+                remainingCounts = remaining,
+                canUndo = true
             )
         }
 
         if (isWin) {
             handleVictory()
+        } else {
+            saveCurrentGame()
         }
-        saveCurrentGame()
     }
 
     fun dismissHint() {
@@ -485,7 +719,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 isPaused = false
             )
         }
-        startTimer()
+        saveCurrentGame()
+        if (isGameScreenVisible) {
+            startTimer()
+        }
     }
 
     private fun handleVictory() {
@@ -496,13 +733,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val state = _uiState.value
         storage.clearActiveGame()
 
+        var isNewRecord = false
         if (state.isDailyChallenge && state.dailyDateString != null) {
             storage.recordDailyCompleted(state.dailyDateString)
+        } else if (!resultRecordedForCurrentGame) {
+            val oldStats = storage.getStats(state.difficulty)
+            isNewRecord = oldStats.bestTimeSeconds == 0L || state.elapsedTimeSeconds < oldStats.bestTimeSeconds
+            storage.recordGameFinished(state.difficulty, won = true, timeSeconds = state.elapsedTimeSeconds)
+            resultRecordedForCurrentGame = true
         }
-
-        val oldStats = storage.getStats(state.difficulty)
-        val isNewRecord = oldStats.bestTimeSeconds == 0L || state.elapsedTimeSeconds < oldStats.bestTimeSeconds
-        storage.recordGameFinished(state.difficulty, won = true, timeSeconds = state.elapsedTimeSeconds)
 
         _uiState.update {
             it.copy(isCompleted = true, isNewRecord = isNewRecord)
@@ -584,7 +823,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun saveCurrentGame() {
         val state = _uiState.value
-        if (state.cells.isEmpty() || state.isCompleted) return
+        if (state.isLoading || state.cells.size != 81 || state.isCompleted) return
         storage.saveActiveGame(
             GameStorage.SavedGameData(
                 difficulty = state.difficulty,
@@ -592,7 +831,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 dailyDateString = state.dailyDateString,
                 elapsedTimeSeconds = state.elapsedTimeSeconds,
                 mistakesCount = state.mistakesCount,
-                hintsUsed = 3 - state.hintsRemaining,
+                hintsUsed = (3 - state.hintsRemaining).coerceAtLeast(0),
                 cells = state.cells
             )
         )

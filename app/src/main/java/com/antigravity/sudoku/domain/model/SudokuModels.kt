@@ -63,7 +63,8 @@ data class MoveRecord(
     val newNotes: Int,
     // 自动清除关联笔记时的受波及格子快照 (row, col, oldNotes, newNotes)
     val affectedNotes: List<AffectedNote> = emptyList(),
-    val wasError: Boolean = false
+    val wasError: Boolean = false,
+    val previousWasError: Boolean = false
 )
 
 data class AffectedNote(
@@ -110,5 +111,6 @@ data class UserSettings(
     val highlightSameNumbers: Boolean = true,
     val highlightPeers: Boolean = true,
     val autoRemoveNotes: Boolean = true,
-    val darkMode: Boolean? = null // null: 跟随系统, true: 深色, false: 浅色
+    val darkMode: Boolean? = null, // null: 跟随系统, true: 深色, false: 浅色
+    val portraitLocked: Boolean = false
 )

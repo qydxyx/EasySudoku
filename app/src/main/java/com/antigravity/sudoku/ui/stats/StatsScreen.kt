@@ -1,10 +1,6 @@
 package com.antigravity.sudoku.ui.stats
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,7 +10,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
@@ -34,7 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,10 +40,12 @@ import com.antigravity.sudoku.data.local.GameStorage
 import com.antigravity.sudoku.domain.model.Difficulty
 import com.antigravity.sudoku.ui.theme.CardBgDark
 import com.antigravity.sudoku.ui.theme.CardBgLight
+import com.antigravity.sudoku.ui.theme.LocalIsDarkTheme
 import com.antigravity.sudoku.ui.theme.SudokuPrimary
 import com.antigravity.sudoku.ui.theme.SudokuPrimaryDark
 import com.antigravity.sudoku.ui.theme.SurfaceBgDark
 import com.antigravity.sudoku.ui.theme.SurfaceBgLight
+import java.util.Locale
 
 /**
  * 历史统计面板：按 5 档难度分段展示总场次、胜率、最快用时、平均用时、连胜数据
@@ -56,7 +55,7 @@ fun StatsScreen(
     storage: GameStorage,
     onNavigateBack: () -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalIsDarkTheme.current
     val bg = if (isDark) SurfaceBgDark else SurfaceBgLight
     val cardBg = if (isDark) CardBgDark else CardBgLight
     val primaryColor = if (isDark) SudokuPrimaryDark else SudokuPrimary
@@ -70,7 +69,7 @@ fun StatsScreen(
         if (sec <= 0) return "--:--"
         val m = sec / 60
         val s = sec % 60
-        return String.format("%02d:%02d", m, s)
+        return String.format(Locale.US, "%02d:%02d", m, s)
     }
 
     Scaffold(
@@ -143,7 +142,9 @@ fun StatsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatsRowCard(cardBg, textPrimary, textMuted, "已玩局数", stats.gamesPlayed.toString())

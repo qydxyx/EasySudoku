@@ -3,7 +3,6 @@ package com.antigravity.sudoku.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.antigravity.sudoku.ui.theme.CardBgDark
 import com.antigravity.sudoku.ui.theme.CardBgLight
+import com.antigravity.sudoku.ui.theme.LocalIsDarkTheme
 import com.antigravity.sudoku.ui.theme.SudokuPrimary
 import com.antigravity.sudoku.ui.theme.SudokuPrimaryDark
 
@@ -56,7 +56,7 @@ fun ActionToolbar(
     onHintClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalIsDarkTheme.current
     val activeColor = if (isDark) SudokuPrimaryDark else SudokuPrimary
     val iconColor = if (isDark) Color(0xFFE5E7EB) else Color(0xFF374151)
     val labelColor = if (isDark) Color(0xFF9CA3AF) else Color(0xFF4B5563)
@@ -241,7 +241,7 @@ fun NumberPad(
     onNumberClick: (number: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalIsDarkTheme.current
     val baseBg = if (isDark) CardBgDark else CardBgLight
     val borderColor = if (isDark) Color(0xFF2D3545) else Color(0xFFE2E8F0)
     val textPrimary = if (isDark) Color(0xFF64B5F6) else Color(0xFF1E5BB9)

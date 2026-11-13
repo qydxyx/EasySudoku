@@ -70,6 +70,10 @@ class GameStorage(context: Context) {
             val hints = json.optInt("hintsUsed", 0)
 
             val cellsArray = json.getJSONArray("cells")
+            if (cellsArray.length() != 81) {
+                clearActiveGame()
+                return null
+            }
             val cells = mutableListOf<Cell>()
             for (i in 0 until cellsArray.length()) {
                 val o = cellsArray.getJSONObject(i)
@@ -164,7 +168,7 @@ class GameStorage(context: Context) {
     // ==========================================
 
     fun getCompletedDailyDates(): Set<String> {
-        return prefs.getStringSet(KEY_COMPLETED_DAILIES, emptySet()) ?: emptySet()
+        return prefs.getStringSet(KEY_COMPLETED_DAILIES, emptySet())?.toSet() ?: emptySet()
     }
 
     fun recordDailyCompleted(dateString: String) {
@@ -185,7 +189,8 @@ class GameStorage(context: Context) {
             highlightSameNumbers = prefs.getBoolean(KEY_HIGHLIGHT_SAME, true),
             highlightPeers = prefs.getBoolean(KEY_HIGHLIGHT_PEERS, true),
             autoRemoveNotes = prefs.getBoolean(KEY_AUTO_REMOVE_NOTES, true),
-            darkMode = if (prefs.contains(KEY_DARK_MODE)) prefs.getBoolean(KEY_DARK_MODE, false) else null
+            darkMode = if (prefs.contains(KEY_DARK_MODE)) prefs.getBoolean(KEY_DARK_MODE, false) else null,
+            portraitLocked = prefs.getBoolean(KEY_PORTRAIT_LOCKED, false)
         )
     }
 
@@ -197,6 +202,7 @@ class GameStorage(context: Context) {
             .putBoolean(KEY_HIGHLIGHT_SAME, settings.highlightSameNumbers)
             .putBoolean(KEY_HIGHLIGHT_PEERS, settings.highlightPeers)
             .putBoolean(KEY_AUTO_REMOVE_NOTES, settings.autoRemoveNotes)
+            .putBoolean(KEY_PORTRAIT_LOCKED, settings.portraitLocked)
 
         if (settings.darkMode != null) {
             editor.putBoolean(KEY_DARK_MODE, settings.darkMode)
@@ -217,5 +223,6 @@ class GameStorage(context: Context) {
         private const val KEY_HIGHLIGHT_PEERS = "pref_highlight_peers"
         private const val KEY_AUTO_REMOVE_NOTES = "pref_auto_remove_notes"
         private const val KEY_DARK_MODE = "pref_dark_mode"
+        private const val KEY_PORTRAIT_LOCKED = "pref_portrait_locked"
     }
 }

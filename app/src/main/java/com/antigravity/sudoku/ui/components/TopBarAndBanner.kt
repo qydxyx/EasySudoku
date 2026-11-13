@@ -1,10 +1,7 @@
 package com.antigravity.sudoku.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,8 +34,10 @@ import com.antigravity.sudoku.domain.model.Difficulty
 import com.antigravity.sudoku.ui.theme.CardBgDark
 import com.antigravity.sudoku.ui.theme.CardBgLight
 import com.antigravity.sudoku.ui.theme.ErrorText
+import com.antigravity.sudoku.ui.theme.LocalIsDarkTheme
 import com.antigravity.sudoku.ui.theme.SudokuPrimary
 import com.antigravity.sudoku.ui.theme.SudokuPrimaryDark
+import java.util.Locale
 
 /**
  * 顶部导航栏：自动适配系统状态栏高度 (statusBarsPadding)，彻底解决与通知栏重合问题
@@ -53,7 +52,7 @@ fun TopGameBar(
     onPauseToggleClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalIsDarkTheme.current
     val textPrimary = if (isDark) Color(0xFFF3F4F6) else Color(0xFF111827)
     val primaryColor = if (isDark) SudokuPrimaryDark else SudokuPrimary
     val iconSurfaceBg = if (isDark) Color(0xFF1E2430) else Color(0xFFEEF2F6)
@@ -77,7 +76,7 @@ fun TopGameBar(
 
         // 中间：标题
         Text(
-            text = if (isDailyChallenge) "每日挑战 (${dailyDateString ?: ""})" else "数独 Sudoku",
+            text = if (isDailyChallenge) "每日挑战 (${dailyDateString ?: ""})" else "EasySudoku",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = textPrimary
@@ -133,14 +132,14 @@ fun GameStatusStrip(
     elapsedTimeSeconds: Long,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalIsDarkTheme.current
     val cardBg = if (isDark) CardBgDark else CardBgLight
     val textPrimary = if (isDark) Color(0xFFF3F4F6) else Color(0xFF111827)
     val textMuted = if (isDark) Color(0xFF9CA3AF) else Color(0xFF6B7280)
 
     val minutes = elapsedTimeSeconds / 60
     val seconds = elapsedTimeSeconds % 60
-    val timeFormatted = String.format("%02d:%02d", minutes, seconds)
+    val timeFormatted = String.format(Locale.US, "%02d:%02d", minutes, seconds)
 
     Surface(
         shape = RoundedCornerShape(14.dp),
@@ -223,7 +222,7 @@ fun HintBanner(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalIsDarkTheme.current
     val bannerBg = if (isDark) Color(0xFF1E3A5F) else Color(0xFFE3F2FD)
     val titleColor = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0)
     val bodyColor = if (isDark) Color(0xFFE0E0E0) else Color(0xFF263238)

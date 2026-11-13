@@ -6,7 +6,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
@@ -20,6 +19,8 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import com.antigravity.sudoku.domain.model.Cell
 import com.antigravity.sudoku.ui.theme.CellBackgroundDark
 import com.antigravity.sudoku.ui.theme.CellBackgroundLight
@@ -32,6 +33,7 @@ import com.antigravity.sudoku.ui.theme.GridBorderThickDark
 import com.antigravity.sudoku.ui.theme.GridBorderThickLight
 import com.antigravity.sudoku.ui.theme.GridBorderThinDark
 import com.antigravity.sudoku.ui.theme.GridBorderThinLight
+import com.antigravity.sudoku.ui.theme.LocalIsDarkTheme
 import com.antigravity.sudoku.ui.theme.NoteTextDark
 import com.antigravity.sudoku.ui.theme.NoteTextLight
 import com.antigravity.sudoku.ui.theme.PeerHighlightDark
@@ -54,15 +56,21 @@ fun SudokuBoardCanvas(
     highlightPeers: Boolean,
     highlightSameNumbers: Boolean,
     waveCells: Set<Int>, // 触发波浪完成动效的单元格索引集
+    waveTriggerId: Long = 0L,
     onCellClicked: (index: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
+    if (cells.size != 81) return
 
-    // 波浪动效插值器 (0f -> 1f -> 0f)
+    val isDark = LocalIsDarkTheme.current
+    val density = LocalDensity.current
+    val thinStroke = with(density) { 0.8.dp.toPx() }
+    val thickStroke = with(density) { 2.0.dp.toPx() }
+
+    // 波浪动效插值器 (0f -> 1f -> 0f)，以 waveTriggerId 为 key 保证重复完成也能重播
     val waveAnim = remember { Animatable(0f) }
-    LaunchedEffect(waveCells) {
-        if (waveCells.isNotEmpty()) {
+    LaunchedEffect(waveTriggerId) {
+        if (waveTriggerId > 0L && waveCells.isNotEmpty()) {
             waveAnim.snapTo(0f)
             waveAnim.animateTo(1f, animationSpec = tween(durationMillis = 220))
             waveAnim.animateTo(0f, animationSpec = tween(durationMillis = 300))
@@ -176,7 +184,6 @@ fun SudokuBoardCanvas(
 
         // 2. 绘制网格线条
         // 细线 (各单元格分割)
-        val thinStroke = 1.5f
         for (i in 1 until 9) {
             if (i % 3 != 0) {
                 val pos = i * cellSize
@@ -187,10 +194,14 @@ fun SudokuBoardCanvas(
             }
         }
 
-        // 粗线 (3x3 宫与四周外框)
-        val thickStroke = 4.5f
+        // 粗线 (3x3 宫与四周外框，外框向内缩半个线宽以免被裁剪)
+        val halfThick = thickStroke / 2f
         for (i in 0..3) {
-            val pos = i * 3 * cellSize
+            val pos = when (i) {
+                0 -> halfThick
+                3 -> boardWidth - halfThick
+                else -> i * 3 * cellSize
+            }
             // 垂直粗线
             drawLine(thickBorderColor, Offset(pos, 0f), Offset(pos, boardWidth), strokeWidth = thickStroke)
             // 水平粗线

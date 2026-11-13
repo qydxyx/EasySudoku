@@ -2,7 +2,6 @@ package com.antigravity.sudoku.ui.daily
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,13 +47,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.antigravity.sudoku.ui.theme.CardBgDark
 import com.antigravity.sudoku.ui.theme.CardBgLight
+import com.antigravity.sudoku.ui.theme.LocalIsDarkTheme
 import com.antigravity.sudoku.ui.theme.SudokuPrimary
 import com.antigravity.sudoku.ui.theme.SudokuPrimaryDark
 import com.antigravity.sudoku.ui.theme.SurfaceBgDark
 import com.antigravity.sudoku.ui.theme.SurfaceBgLight
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 
 /**
@@ -66,7 +65,7 @@ fun DailyChallengeScreen(
     onSelectDate: (dateString: String) -> Unit,
     onNavigateBack: () -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalIsDarkTheme.current
     val bg = if (isDark) SurfaceBgDark else SurfaceBgLight
     val cardBg = if (isDark) CardBgDark else CardBgLight
     val primaryColor = if (isDark) SudokuPrimaryDark else SudokuPrimary
@@ -75,9 +74,13 @@ fun DailyChallengeScreen(
 
     var currentCalendar by remember { mutableStateOf(Calendar.getInstance()) }
     val todayCalendar = remember { Calendar.getInstance() }
+    val todayYear = todayCalendar.get(Calendar.YEAR)
+    val todayMonth = todayCalendar.get(Calendar.MONTH)
+    val todayDay = todayCalendar.get(Calendar.DAY_OF_MONTH)
 
     val year = currentCalendar.get(Calendar.YEAR)
     val month = currentCalendar.get(Calendar.MONTH) // 0..11
+    val canGoNextMonth = (year < todayYear) || (year == todayYear && month < todayMonth)
 
     val monthName = remember(year, month) {
         val cal = Calendar.getInstance().apply { set(year, month, 1) }
@@ -95,7 +98,7 @@ fun DailyChallengeScreen(
     }
 
     // 当月已完成打卡统计
-    val monthPrefix = String.format("%04d-%02d", year, month + 1)
+    val monthPrefix = String.format(Locale.US, "%04d-%02d", year, month + 1)
     val monthCompletedCount = remember(completedDates, monthPrefix) {
         completedDates.count { it.startsWith(monthPrefix) }
     }
@@ -161,7 +164,7 @@ fun DailyChallengeScreen(
                             .padding(start = 14.dp)
                     ) {
                         Text(
-                            text = "${month + 1} 月度挑战奖杯",
+                            text = "${year}年 ${month + 1}月挑战奖杯",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = textPrimary
@@ -208,12 +211,19 @@ fun DailyChallengeScreen(
                     color = textPrimary
                 )
 
-                IconButton(onClick = {
-                    val cal = currentCalendar.clone() as Calendar
-                    cal.add(Calendar.MONTH, 1)
-                    currentCalendar = cal
-                }) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = "下个月", tint = textPrimary)
+                IconButton(
+                    enabled = canGoNextMonth,
+                    onClick = {
+                        val cal = currentCalendar.clone() as Calendar
+                        cal.add(Calendar.MONTH, 1)
+                        currentCalendar = cal
+                    }
+                ) {
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = "下个月",
+                        tint = if (canGoNextMonth) textPrimary else textMuted.copy(alpha = 0.3f)
+                    )
                 }
             }
 
@@ -252,12 +262,13 @@ fun DailyChallengeScreen(
                 // 渲染各日期单元格
                 items(daysInMonth) { dayIndex ->
                     val day = dayIndex + 1
-                    val dateStr = String.format("%04d-%02d-%02d", year, month + 1, day)
+                    val dateStr = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day)
                     val isDone = completedDates.contains(dateStr)
 
-                    val isToday = (year == todayCalendar.get(Calendar.YEAR) &&
-                            month == todayCalendar.get(Calendar.MONTH) &&
-                            day == todayCalendar.get(Calendar.DAY_OF_MONTH))
+                    val isToday = (year == todayYear && month == todayMonth && day == todayDay)
+                    val isFuture = (year > todayYear) ||
+                        (year == todayYear && month > todayMonth) ||
+                        (year == todayYear && month == todayMonth && day > todayDay)
 
                     Box(
                         modifier = Modifier
@@ -265,12 +276,13 @@ fun DailyChallengeScreen(
                             .clip(CircleShape)
                             .background(
                                 when {
-                                    isDone -> Color(0xFFFEF3C7)
+                                    isDone -> if (isDark) Color(0xFF453211) else Color(0xFFFEF3C7)
                                     isToday -> primaryColor.copy(alpha = 0.15f)
+                                    isFuture -> Color.Transparent
                                     else -> cardBg
                                 }
                             )
-                            .clickable {
+                            .clickable(enabled = !isFuture) {
                                 onSelectDate(dateStr)
                             },
                         contentAlignment = Alignment.Center
@@ -287,7 +299,11 @@ fun DailyChallengeScreen(
                                 text = day.toString(),
                                 fontSize = 14.sp,
                                 fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isToday) primaryColor else textPrimary
+                                color = when {
+                                    isToday -> primaryColor
+                                    isFuture -> textMuted.copy(alpha = 0.4f)
+                                    else -> textPrimary
+                                }
                             )
                         }
                     }

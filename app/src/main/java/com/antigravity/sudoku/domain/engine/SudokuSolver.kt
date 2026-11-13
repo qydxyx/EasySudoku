@@ -35,7 +35,7 @@ class SudokuSolver {
 
         var count = 0
 
-        fun solve(index: Int) {
+        fun solve() {
             if (count >= maxSolutions) return
 
             // 寻找拥有最少候选数的位置（MRV 启发式剪枝加速）
@@ -82,7 +82,7 @@ class SudokuSolver {
                 colMask[bestC] = colMask[bestC] or lsb
                 boxMask[b] = boxMask[b] or lsb
 
-                solve(index + 1)
+                solve()
 
                 workingGrid[bestR][bestC] = 0
                 rowMask[bestR] = rowMask[bestR] xor lsb
@@ -91,7 +91,7 @@ class SudokuSolver {
             }
         }
 
-        solve(0)
+        solve()
         return count
     }
 
@@ -110,6 +110,9 @@ class SudokuSolver {
                 if (v in 1..9) {
                     val bit = 1 shl v
                     val b = (r / 3) * 3 + (c / 3)
+                    if ((rowMask[r] and bit) != 0 || (colMask[c] and bit) != 0 || (boxMask[b] and bit) != 0) {
+                        return null // 初始棋盘存在冲突，无解
+                    }
                     rowMask[r] = rowMask[r] or bit
                     colMask[c] = colMask[c] or bit
                     boxMask[b] = boxMask[b] or bit
